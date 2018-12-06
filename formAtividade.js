@@ -19,6 +19,9 @@ function atualizar(){
   
   var lastRow = ss1.getLastRow();
   var dataAtualizacao = ss1.getRange(lastRow, 1).getValue();
+  if (dataAtualizacao == "Data"){
+    dataAtualizacao = "";
+  }
   
   var file = DriveApp.getFilesByName('NOVO Planilha de Acompanhamento de Atividades').next();
   var ss2 = SpreadsheetApp.open(file).getSheetByName('Solicitações');
@@ -38,6 +41,18 @@ function atualizar(){
     if (codigo1 == codigo2 && ano1 == ano2){
       ss2.getRange(i+2,22).setValue(dataAtualizacao);
       ss2.getRange(i+2, 7, 1, 4).setValues([[solicitacao,responsavel1,status1,obs]]);
+      if (responsavel1 == "Amaro"){
+        ss2.getRange(i+2, 1, 1, 24).setFontColor("#6aa84f");
+      }
+      else if(responsavel1 == "Josimar"){
+        ss2.getRange(i+2, 1, 1, 24).setFontColor("#a64d79");
+      }
+      else if(responsavel1 == "Paulo"){
+        ss2.getRange(i+2, 1, 1, 24).setFontColor("#1155cc");
+      }
+      else{
+        ss2.getRange(i+2, 1, 1, 24).setFontColor("#000000");
+      }
       if (status1 == "Concluído"){
         ss2.getRange(i+2, 17).setValue(dataAtualizacao);
       }
