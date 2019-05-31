@@ -1,0 +1,516 @@
+function onOpen() {  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var mapa = ss.getSheetByName("Mapa das Iniciativas");
+  ss.setActiveSheet(mapa);
+  var ui=SpreadsheetApp.getUi();
+  ui.createMenu('ATALHOS')
+    .addSubMenu(ui.createMenu('MAPA')
+              .addItem('Criar iniciativa', 'criarIniciativa')
+              .addItem('Adicionar iniciativa no mapa', 'addIniciativa')
+              .addItem('Remover iniciativa do mapa', 'removerIniciativa')
+              .addItem('Pausar iniciativa', 'pausarIniciativa')
+              .addItem('Mostrar iniciativas', 'mostrarIniciativas')
+              )
+    .addSeparator()
+    .addSubMenu(ui.createMenu('INICIATIVA')
+              .addItem('Adicionar tarefas','addTarefas')
+              .addItem('Excluir tarefas','excluirTarefa')
+              .addSeparator()
+              .addItem('Atualizar Iniciativa','atualizarIniciativa')
+              )
+    .addSeparator()
+    .addItem('DASHBOARD','openDashboard')
+  .addToUi()
+  Browser.msgBox('Atenção!', 'Não mudar a formatação das planilhas.', Browser.Buttons.OK);
+}
+// ################################################################################################ //
+function criarIniciativa(){
+  if(isMapa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ui = SpreadsheetApp.getUi();
+    var botao = ui.prompt('Adicionar iniciativa','Qual iniciativa deseja criar? (Preencher apenas número)',ui.ButtonSet.YES_NO);
+    if(botao.getSelectedButton() == ui.Button.YES){
+      var numeroIniciativa = botao.getResponseText();
+      if(!ss.getSheetByName('Iniciativa '+ numeroIniciativa)){
+        var novaIniciativa = ss.getSheetByName('MODELO').copyTo(ss);
+        novaIniciativa.setName('Iniciativa '+ numeroIniciativa);
+        ss.setActiveSheet(novaIniciativa);
+        botao = ui.prompt('Nome','Nome da iniciativa:',ui.ButtonSet.OK);
+        novaIniciativa.getRange('B2').setValue(botao.getResponseText());
+        var descricao = botao.getResponseText();
+        botao = ui.prompt('Responsável','Responsável pela iniciativa:',ui.ButtonSet.OK);
+        novaIniciativa.getRange('B4').setValue(botao.getResponseText());
+        var responsavel = botao.getResponseText();
+        var mapa = ss.getSheetByName("Mapa das Iniciativas");
+        addIniciativa1(responsavel,descricao,mapa);
+        hiperlink(novaIniciativa,mapa,numeroIniciativa,numeroIniciativa+6);
+        Browser.msgBox('Atenção!', 'Agora preencher as tarefas da iniciativa.\\n   Para adicionar tarefa: ' +
+                       '\\n      - Clicar em ATALHOS\\n      - Clicar em INICIATIVA -> Adicionar Tarefas' + 
+                       '\\n Para remover tarefas: \\n      - Clicar em ATALHOS\\n ' +
+                       '      - Selecionar as tarefas e clicar em INICIATIVA -> Remover Tarefas'
+                       , Browser.Buttons.OK);
+      }
+      else{
+        Browser.msgBox('Atenção!', 'Iniciativa já existe.', Browser.Buttons.OK);
+      }
+    }
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível criar iniciativa nessa planilha.\\n\\nNecessário estar no mapa de Iniciativas.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ################################################################################################ //
+function addTarefa(){
+  if (isIniciativa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var iniciativaPlan = ss.getActiveSheet();
+    var nTarefas = iniciativaPlan.getRange("B6").getValue();
+    var ultimaTarefa = iniciativaPlan.getRange(nTarefas+2, 4,1,8);
+    var novaTarefa =  iniciativaPlan.getRange(nTarefas+3, 4,1,8);
+    if(nTarefas != 0){ 
+      ultimaTarefa.copyTo(novaTarefa, {contentsOnly:false});
+    }
+    nTarefas++;
+    var values = [[nTarefas,"","","",""]]
+    novaTarefa =  iniciativaPlan.getRange(nTarefas+2, 4,1,5);
+    novaTarefa.setValues(values);
+    novaTarefa =  iniciativaPlan.getRange(nTarefas+2, 11);
+    novaTarefa.setValue("");
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível adicionar tarefa nessa planilha.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ################################################################################################ //
+function excluirTarefa(){
+  if (isIniciativa()){
+    var ui = SpreadsheetApp.getUi();
+    var botao2 = ui.alert('Atenção!','Tem certeza que deseja remover a tarefa dessa iniciativa?',ui.ButtonSet.YES_NO);
+    if (botao2 == ui.Button.YES){
+      var ss = SpreadsheetApp.getActiveSpreadsheet();
+      var iniciativaPlan = ss.getActiveSheet();
+      var linha = iniciativaPlan.getActiveRange().getRow();
+      var nLinhas = iniciativaPlan.getActiveRange().getNumRows();
+      linha = iniciativaPlan.getRange(linha,4,nLinhas,8);
+      linha.deleteCells(SpreadsheetApp.Dimension.ROWS);
+      azul(iniciativaPlan,nLinhas);
+      var nTarefas = iniciativaPlan.getRange("B6").getValue();
+      var idTarefas = iniciativaPlan.getRange(3,4,nTarefas,1).getValues();
+      for(var i=0;i<nTarefas;i++){
+        idTarefas[i][0] = [i+1];
+      }
+      iniciativaPlan.getRange(3,4,nTarefas,1).setValues(idTarefas);
+    }
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível excluir tarefa nessa planilha.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ################################################################################################ //
+function isIniciativa(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var sheetName = sheet.getSheetName().split(" ");
+  if (sheetName[0] == "Iniciativa"){
+    return true;
+  }
+  else{
+    return false;
+  }
+}
+// ################################################################################################ //
+function isMapa(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getActiveSheet();
+  var sheetName = sheet.getSheetName().split(" ");
+  if (sheetName[0] == "Mapa"){
+    return true;
+  }
+  else{
+    return false;
+  }
+}
+// ################################################################################################ //
+function atualizarIniciativa(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if(isIniciativa()){
+    atualizarTarefas();
+    var mapa = ss.getSheetByName("Mapa das Iniciativas");
+    var iniciativaPlan = ss.getActiveSheet();  
+    var nTarefas = iniciativaPlan.getRange("B6").getValue();
+    var celulaFormula = iniciativaPlan.getRange("B7");
+    celulaFormula.setFontColor("white");
+    var intervalo_conclusao = "F3:F";
+    var intervalo_duracao = "H3:H";      
+    var formula = '=(SUMIF(ARRAYFORMULA('+intervalo_conclusao+'*'+intervalo_duracao+');">=0"))/SUM('+intervalo_duracao+')';
+    celulaFormula.setFormula(formula);        
+    var conclusaoTotal = celulaFormula.getValue();
+    formula = [['COUNTA(M:M) ']];
+    celulaFormula.setFormula(formula);
+    var nAtualizacao = celulaFormula.getValue();
+    celulaFormula.setValue("");
+    var atualMesAtualizacao = Utilities.formatDate(new Date, "GMT", "yyyy-MM") +"-15";
+    if(nAtualizacao != 1){
+      var ultimoMesAtualizacao = Utilities.formatDate(iniciativaPlan.getRange(nAtualizacao+1,13).getValue(),"GMT", "yyyy-MM-dd");
+      if(atualMesAtualizacao.slice(0,7) != ultimoMesAtualizacao.slice(0,7)){
+        var ultimaAtualizacao = iniciativaPlan.getRange(nAtualizacao, 13,1,3);
+        var novaAtualizacao = iniciativaPlan.getRange(nAtualizacao+2, 13,1,3);
+        ultimaAtualizacao.copyTo(novaAtualizacao, {contentsOnly:false});
+        var values = [[atualMesAtualizacao,"-",conclusaoTotal]];
+        novaAtualizacao.setValues(values);
+      }
+      else{
+        iniciativaPlan.getRange(nAtualizacao+1, 15).setValue(conclusaoTotal);
+      }
+    }
+    else{
+      var novaAtualizacao = iniciativaPlan.getRange(nAtualizacao+2, 13,1,3);
+      var values = [[atualMesAtualizacao,"-",conclusaoTotal]];
+      novaAtualizacao.setValues(values);
+    }
+    iniciativaPlan.getRange(nAtualizacao+1,13).setNumberFormat("MM/yyyy");
+    iniciativaPlan.getRange(nAtualizacao+1,15).setNumberFormat("00.00%");
+    var id = parseInt(iniciativaPlan.getSheetName().slice(10));
+    if(mapa.getRange(id+6,4).getValue() == id){
+      mapa.getRange(id+6,15,1,2).setValues([[Utilities.formatDate(new Date, "GMT", "yyyy-MM-dd"),'Não']]);
+      values = [[conclusaoTotal,iniciativaPlan.getRange("G3").getValue(),iniciativaPlan.getRange(nTarefas+2,9,1,1).getValue()]];
+      mapa.getRange(id+6,7,1,3).setValues(values);
+    }
+  } 
+  else if(isMapa()){
+    var mapa = ss.getSheetByName("Mapa das Iniciativas");
+    var linhaIniciativa = mapa.getActiveRange().getRow();
+    var nIniciativa = mapa.getRange(linhaIniciativa,4).getValue();
+    var iniciativaPlan = ss.getSheetByName("Iniciativa "+nIniciativa);
+    var nTarefas = iniciativaPlan.getRange("B6").getValue();
+    var celulaFormula = iniciativaPlan.getRange("B7");
+    celulaFormula.setFontColor("white");
+    var intervalo_conclusao = "F3:F";
+    var intervalo_duracao = "H3:H";      
+    var formula = '=(SUMIF(ARRAYFORMULA('+intervalo_conclusao+'*'+intervalo_duracao+');">=0"))/SUM('+intervalo_duracao+')';
+    celulaFormula.setFormula(formula);        
+    var conclusaoTotal = celulaFormula.getValue();
+    formula = [['COUNTA(M:M) ']];
+    celulaFormula.setFormula(formula);
+    var nAtualizacao = celulaFormula.getValue();
+    celulaFormula.setValue("");
+    var valores = [[iniciativaPlan.getRange("B4").getValue(),iniciativaPlan.getRange("B2").getValue(),conclusaoTotal,
+                    iniciativaPlan.getRange("G3").getValue(),iniciativaPlan.getRange(nTarefas+2,9,1,1).getValue()]];
+    mapa.getRange(linhaIniciativa,5,1,5).setValues(valores);
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível atualizar a iniciativa tarefa nessa planilha.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ################################################################################################ //
+function addIniciativa(){
+  if(isMapa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var mapa = ss.getActiveSheet();
+    var ui = SpreadsheetApp.getUi();
+    var botao = ui.prompt('Adicionar iniciativa','Qual iniciativa deseja incluir? (Preencher apenas o número)',ui.ButtonSet.OK);
+    var nIniciativa = botao.getResponseText();
+    var nomeIniciativa = 'Iniciativa ' + nIniciativa;
+    try{
+      var iniciativa = ss.getSheetByName(nomeIniciativa);
+      var botao2 = ui.alert('Atenção!','Já preencheu a planilha dessa iniciativa?',ui.ButtonSet.YES_NO);
+      if (botao2 == ui.Button.YES){
+        var nIniciativas = mapa.getRange('B8').getValue();    
+        var ultimaIniciativa = mapa.getRange(nIniciativas+6,4,1,14);
+        var novaIniciativa = mapa.getRange(nIniciativas+7, 4,1,14);
+        if(nIniciativas != 0){
+          ultimaIniciativa.copyFormatToRange(mapa, 4, 16, nIniciativas+7,nIniciativas+7);
+          var formulas = ultimaIniciativa.getFormulas();
+          formulas[0][0] = "";
+          novaIniciativa.setFormulas(formulas);
+        }
+        var valores = [[]];
+        valores[0][0] = nIniciativa;
+        valores[0][1] = iniciativa.getRange('B4').getValue();
+        valores[0][2] = iniciativa.getRange('B2').getValue();
+        valores[0][3] = "";
+        var nTarefas = iniciativa.getRange('B6').getValue();
+        valores[0][4] = iniciativa.getRange('G3').getValue();
+        valores[0][5] = iniciativa.getRange(nTarefas+2,9).getValue();
+        novaIniciativa = mapa.getRange(nIniciativas+7,4,1,6);
+        novaIniciativa.setValues(valores);
+        var rule = SpreadsheetApp.newDataValidation().requireValueInList(['Sim', 'Não']).build();
+        mapa.getRange(nIniciativas+7,16).setDataValidation(rule);
+        hiperlink(iniciativa,mapa,nIniciativa);
+      }
+      else{
+        Browser.msgBox("Atenção!", "Inserir informações na planilha da iniciativa ou criar uma nova iniciativa.", Browser.Buttons.OK);
+      }
+    }
+    catch(err){
+      Browser.msgBox("Iniciativa não encontrada!", "Escreva o número correto da planilha \\n - EX: 1", Browser.Buttons.OK);
+    }
+  }
+  else{
+    Browser.msgBox("Atenção!", "Inserir informações na planilha da iniciativa ou criar uma nova iniciativa.", Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ################################################################################################ //
+function removerIniciativa(){
+  if (isMapa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var mapa = ss.getActiveSheet();
+    var iniciativas = mapa.getActiveRange();
+    var nLinhas = iniciativas.getNumRows();
+    var linha = iniciativas.getRow();
+    iniciativas = mapa.getRange(linha,4,nLinhas,14);
+    iniciativas.deleteCells(SpreadsheetApp.Dimension.ROWS);
+    azul(mapa,nLinhas);
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível remover iniciativa nessa planilha.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ############################################################################################### //
+function openDashboard(){ // Função para gerar o link do dashboard e acessar com apenas um click
+  // URL específica para cada dashboard
+  var urlDashboard = 'https://www.facebook.com/';
+  // Output de um html com um script, para que seja executado dentro da janela de interface de usuário showModalDialog()
+  var html = HtmlService.createHtmlOutput('<html><script>'
+  +'window.close = function(){window.setTimeout(function(){google.script.host.close()},9)};'
+  +'var a = document.createElement("a"); a.href="'+urlDashboard+'"; a.target="_blank";'
+  +'if(document.createEvent){'+'var event=document.createEvent("MouseEvents");'
+  // Gambiarra para forçar a janela de interface. Para abrir SEM precisar do link é necessário DESATIVAR o bloqueador de pop-up e RETIRAR o trecho "navigator.userAgent.toLowerCase().indexOf("chrome")>-1" do código abaixo.
+  +'if(navigator.userAgent.toLowerCase().indexOf("chrome")>-1||navigator.userAgent.toLowerCase().indexOf("firefox")>-1){window.document.body.append(a)}'
+  +'event.initEvent("click",true,true); a.dispatchEvent(event);'+'}else{ a.click() }'+'close();'+'</script>'
+  // URL como link clicável caso não abra automaticamente
+  +'<body style="word-break:break-word;font-family:sans-serif;"><a href="'+urlDashboard+'" target="_blank" onclick="window.close()">Clique aqui para prosseguir.</a></body>'
+  +'<script>google.script.host.setHeight(35);google.script.host.setWidth(280)</script>'+'</html>').setWidth(90).setHeight(1);
+  SpreadsheetApp.getUi().showModalDialog(html,"Gerando link do Dashboard...");
+}
+// ############################################################################################### //
+function atualizarTarefas(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var iniciativaPlan = ss.getActiveSheet();
+  var nTarefas = iniciativaPlan.getRange("B6").getValue();
+  var conclusoes = iniciativaPlan.getRange(3,6,nTarefas,1).getValues();
+  var termino = iniciativaPlan.getRange(3,11,nTarefas,1).getValues();
+  for(var i=0;i<nTarefas;i++){
+    if(conclusoes[i][0] == 1 && !termino[i][0]){
+      termino[i] = [Utilities.formatDate(new Date, "GMT", "yyyy-MM-dd")];
+    }
+    else if(conclusoes[i][0] < 1){
+      termino[i] = [""];
+    }
+  }
+  iniciativaPlan.getRange(3,11,nTarefas,1).setValues(termino);
+}
+// ############################################################################################### //
+function addTarefas(){
+  if (isIniciativa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var iniciativaPlan = ss.getActiveSheet();
+    var nTarefas = iniciativaPlan.getRange("B6").getValue();
+    var ultimaTarefa = iniciativaPlan.getRange(nTarefas+2, 4,1,8);
+    var ui = SpreadsheetApp.getUi();
+    var botao = ui.prompt('Adicionar tarefas','Quantas tarefas deseja adicionar? (Preencher apenas o número)',ui.ButtonSet.OK);
+    var nTarefasAdd = parseInt(botao.getResponseText());
+    var novaTarefa =  iniciativaPlan.getRange(nTarefas+3, 4,1,8);
+    if(nTarefas != 0){ 
+      ultimaTarefa.copyFormatToRange(iniciativaPlan, 4, 11, nTarefas+3,nTarefas+2+nTarefasAdd);
+    }
+    var valores = [];
+    var formulas = [];
+    for(var i=0;i<nTarefasAdd;i++){
+        valores[i] = [nTarefas+1+i,"","","",""];
+        formulas[i] = [' IF(R[0]C[-2]<>""; WORKDAY(R[0]C[-2];R[0]C[-1]);"")',
+        ' IF(R[0]C[-1]="";""; CONCATENATE(IF(R[0]C[-4]>=100%;"CONCLUIDA";"EM ANDAMENTO"); " ";IF(OR(R[0]C[1]>R[0]C[-1];AND(R[0]C[1]="";TODAY()>R[0]C[-1]));"FORA DO PRAZO";"DENTRO DO PRAZO")))'];
+      }
+    iniciativaPlan.getRange(nTarefas+3,4,nTarefasAdd,5).setValues(valores);
+    iniciativaPlan.getRange(nTarefas+3,9,nTarefasAdd,2).setFormulasR1C1(formulas);
+    Logger.log(valores);
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível adicionar tarefa nessa planilha.', Browser.Buttons.OK);
+  }
+  acertarFormulas();
+}
+// ############################################################################################### //
+function showMap(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  ss.setActiveSheet(ss.getSheetByName("Mapa das Iniciativas"));
+}
+// ############################################################################################### //
+function hiperlink(iniciativa,mapa,nIniciativa){
+  var gid = iniciativa.getSheetId();
+  gid = gid+"&range=B2";
+  mapa.getRange(parseInt(nIniciativa)+6,4).setFormula([['HYPERLINK("https://docs.google.com/spreadsheets/d/1quM_5OajbGC4_UFxGIEKe6pYlqlaAhZQ09sWtQHG_HA/edit#gid='+gid+'";"'+nIniciativa+'")']]);
+}
+// ############################################################################################### //
+function addIniciativa1(responsavel,descricao,mapa){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var nIniciativas = mapa.getRange('B8').getValue();    
+  var ultimaIniciativa = mapa.getRange(nIniciativas+6,4,1,14);
+  var novaIniciativa = mapa.getRange(nIniciativas+7, 4,1,14);
+  if(nIniciativas != 0){
+    ultimaIniciativa.copyFormatToRange(mapa, 4, 16, nIniciativas+7,nIniciativas+7);
+    var formulas = ultimaIniciativa.getFormulas();
+    formulas[0][0] = "";
+    novaIniciativa.setFormulas(formulas);
+  }
+  var valores = [[]];
+  valores[0][0] = responsavel;
+  valores[0][1] = descricao
+  novaIniciativa = mapa.getRange(nIniciativas+7,5,1,2);
+  novaIniciativa.setValues(valores);
+  var rule = SpreadsheetApp.newDataValidation().requireValueInList(['Sim', 'Não']).build();
+  mapa.getRange(nIniciativas+7,16).setDataValidation(rule);
+  acertarFormulas();
+}
+// ############################################################################################### //
+function pausarIniciativa(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if(isMapa()){
+    var ui = SpreadsheetApp.getUi();
+    var botao = ui.alert('Atenção!','Tem certeza que deseja pausar a(s) iniciativa(s)?',ui.ButtonSet.YES_NO);
+    if(botao == ui.Button.YES){
+      var mapa = ss.getSheetByName("Mapa das Iniciativas");
+      var linhas = mapa.getActiveRange().getNumRows();
+      var primeiraLinha = mapa.getActiveRange().getRow();
+      mapa.hideRows(primeiraLinha, linhas);
+      var valores = [];
+      for(var i=0;i<linhas;i++){
+        valores[i] = ['Sim'];
+      }
+      mapa.getRange(primeiraLinha,16,linhas,1).setValues(valores);          
+    }
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível pausar iniciativa nessa planilha.', Browser.Buttons.OK);
+  }
+}
+// ############################################################################################### //
+function mostrarIniciativas(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if(isMapa()){
+    var mapa = ss.getSheetByName("Mapa das Iniciativas");
+    var nIniciativas = mapa.getRange("B8").getValue();
+    var primeiraLinha = mapa.getActiveRange().getRow();
+    mapa.showRows(1,nIniciativas+6);
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível pausar iniciativa nessa planilha.', Browser.Buttons.OK);
+  }
+}
+// ############################################################################################### //
+function azul(planilha,linhas){
+  var ultimaLinha = planilha.getMaxRows();
+  var ultimaColuna = planilha.getMaxColumns();
+  planilha.getRange(ultimaLinha-linhas,1,linhas+1,ultimaColuna).setBackground('#c9e1ff');
+}
+// ############################################################################################### //
+function acertarFormulas(){
+  var formulasMapa = ['COUNTIF(K7:K;"EM ANDAMENTO")',
+                      'COUNTA(D:D) - 1',
+                      '(R[0]C[-1]-R[0]C[-2])/30',
+                      'IF(IF(R[0]C[5]="Sim";TRUE;FALSE);"PARALISADO";IF(R[0]C[-4]=100%;"CONCLUÍDA";"EM ANDAMENTO"))',
+                      'IF(R[0]C[2]<>"";IF((DATEDIF(R[0]C[-6];TODAY();"D"))/(DATEDIF(R[0]C[-6];R[0]C[-5];"D"))>1;1;(DATEDIF(R[0]C[-6];TODAY();"D"))/(DATEDIF(R[0]C[-6];R[0]C[-5];"D")));"")',
+                      'IF(B$3-R[0]C[-2]>30;"AGUARDANDO ATUALIZAÇÃO";"ATUALIZADO")'
+                   ];
+  var formulasIniciativa = ['COUNT(D:D)',' IF(R[0]C[-2]<>""; WORKDAY(R[0]C[-2];R[0]C[-1]);"")',
+                            'IF(R[0]C[-1]="";""; CONCATENATE(IF(R[0]C[-4]>=100%;"CONCLUIDA";"EM ANDAMENTO"); " ";IF(OR(R[0]C[1]>R[0]C[-1];AND(R[0]C[1]="";TODAY()>R[0]C[-1]));"FORA DO PRAZO";"DENTRO DO PRAZO")))'
+                           ];
+  if(isMapa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var mapa = ss.getSheetByName("Mapa das Iniciativas");
+    mapa.getRange("B6").setFormula(formulasMapa[0]);
+    mapa.getRange("B8").setFormula(formulasMapa[1]);
+    var nIniciativas = mapa.getRange("B8").getValue();
+    var formulas1 = [];
+    var formulas2 = [];
+    var formulas3 = [];
+    for(var i=0;i<nIniciativas;i++){
+      formulas1[i] = [formulasMapa[2],formulasMapa[3]]
+      formulas2[i] = [formulasMapa[4]];
+      formulas3[i] = [formulasMapa[5]];
+    }
+    mapa.getRange(7,10,nIniciativas,2).setFormulas(formulas1);
+    mapa.getRange(7,14,nIniciativas,1).setFormulas(formulas2);
+    mapa.getRange(7,17,nIniciativas,1).setFormulas(formulas3);
+  }
+  else if(isIniciativa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var iniciativaPlan = ss.getActiveSheet();
+    iniciativaPlan.getRange("B6").setFormula(formulasIniciativa[0]);
+    var nTarefas = iniciativaPlan.getRange("B6").getValue();
+    Logger.log(nTarefas)
+    var formulas1 = [];
+    for(var i=0;i<parseInt(nTarefas);i++){
+      formulas1[i] = [formulasIniciativa[1],formulasIniciativa[2]];
+    }
+    iniciativaPlan.getRange(3,9,parseInt(nTarefas),2).setFormulas(formulas1);
+  }
+}
+
+
+
+// ############################################################################################### //
+function z(){
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var mapa = ss.getActiveSheet();
+  var iniciativa = ss.getSheetByName("Iniciativa 1");
+  var gid = iniciativa.getSheetId();
+  var urlGestao = ss.getUrl();
+  Logger.log(urlGestao+"#gid="+gid+"&range=A1")
+}
+
+// ---------------------------------------------------------------------------------------------- //
+function atualizarTarefa(){ // Essa função está obsoleta
+  if (isIniciativa()){
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var iniciativaPlan = ss.getActiveSheet();
+    var linha = iniciativaPlan.getActiveRange().getRow();
+    var conclusao = iniciativaPlan.getRange(linha, 6).getValue();
+    var prazoEstatus = iniciativaPlan.getRange(linha, 9,1,2).getA1Notation();
+    var F = iniciativaPlan.getRange(linha,6).getA1Notation();
+    var G = iniciativaPlan.getRange(linha,7).getA1Notation();
+    var H = iniciativaPlan.getRange(linha,8).getA1Notation();
+    var I = iniciativaPlan.getRange(linha,9).getA1Notation();
+    var K = iniciativaPlan.getRange(linha,11).getA1Notation();
+    var formulas =[
+       [' IF('+G+'<>""; WORKDAY('+G+';'+H+');"")',
+        ' IF('+I+'="";""; CONCATENATE(IF('+F+'>=100%;"CONCLUIDA";"EM ANDAMENTO"); " ";IF(OR('+K+'>'+I+';AND('+K+'="";TODAY()>'+I+'));"FORA DO PRAZO";"DENTRO DO PRAZO")))']
+    ];
+    iniciativaPlan.getRange(prazoEstatus).setFormulas(formulas);
+    if(conclusao == 1){
+      iniciativaPlan.getRange(linha,11).setValue(Utilities.formatDate(new Date, "GMT", "yyyy-MM-dd"));
+      iniciativaPlan.getRange(linha,11).setNumberFormat("dd/mm/yyyy");
+    }
+    else{
+      iniciativaPlan.getRange(linha,11).setValue("");
+    }
+  }
+  else{
+    Browser.msgBox('Atenção!', 'Não é possível excluir tarefa nessa planilha.', Browser.Buttons.OK);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
